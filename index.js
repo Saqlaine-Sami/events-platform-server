@@ -149,6 +149,25 @@ app.get(
   })
 );
 
+// ---------- PRIVATE: Create event ----------
+app.post(
+  "/events",
+  verifyToken,
+  wrap(async (req, res) => {
+    const error = validateEvent(req.body);
+    if (error) return res.status(400).json({ message: error });
+
+    const doc = {
+      ...pickEvent(req.body),
+      creatorEmail: req.user.email, // কে বানিয়েছে তা JWT থেকে আসছে (নিরাপদ)
+      creatorName: req.user.name,
+      createdAt: new Date(),
+    };
+    const result = await req.col.events.insertOne(doc);
+    res.status(201).json({ insertedId: result.insertedId });
+  })
+);
+
 // ===== এই লাইনের নিচের অংশ সবসময় ফাইলের শেষে থাকবে =====
 export default app; // Vercel-এর জন্য
 if (!process.env.VERCEL) {
