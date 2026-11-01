@@ -230,6 +230,69 @@ app.delete(
   })
 );
 
+// ---------- PRIVATE: Join event ----------
+app.post(
+  "/events/:id/join",
+  verifyToken,
+  wrap(async (req, res) => {
+    const { id } = req.params;
+    if (!ObjectId.isValid(id))
+      return res.status(400).json({ message: "ইভেন্ট ID সঠিক নয়" });
+
+    const event = await req.col.events.findOne({ _id: new ObjectId(id) });
+    if (!event) return res.status(404).json({ message: "ইভেন্ট পাওয়া যায়নি" });
+    if (event.date < todayStr())
+      return res.status(400).json({ message: "এই ইভেন্টের তারিখ পার হয়ে গেছে" });
+
+    const already = await req.col.joins.findOne({
+      eventId: event._id,
+      userEmail: req.user.email,
+    });
+    if (already)
+      return res.status(409).json({ message: "আপনি আগেই এই ইভেন্টে জয়েন করেছেন" });
+
+    // event + user দুটোর তথ্যই ডাটাবেজে রাখা হচ্ছে
+    await req.col.joins.insertOne({
+      eventId: event._id,
+      eventTitle: event.title,
+      eventDate: event.date,
+      userEmail: req.user.email,
+      userName: req.user.name,
+      joinedAt: new Date(),
+    });
+    res.status(201).json({ message: "ইভেন্টে জয়েন সম্পন্ন হয়েছে" });
+  })
+);
+
+// ---------- PRIVATE: Joined events (event date অনুযায়ী sorted) ----------
+app.get(
+  "/joined-events",
+  verifyToken,
+  wrap(async (req, res) => {
+    const events = await req.col.joins
+      .aggregate([
+        { $match: { userEmail: req.user.email } },
+        {
+          $lookup: {
+            from: "events",
+            localField: "eventId",
+            foreignField: "_id",
+            as: "event",
+          },
+        },
+        { $unwind: "$event" },
+        {
+          $replaceRoot: {
+            newRoot: { $mergeObjects: ["$event", { joinedAt: "$joinedAt" }] },
+          },
+        },
+        { $sort: { date: 1 } },
+      ])
+      .toArray();
+    res.json(events);
+  })
+);
+
 // ===== এই লাইনের নিচের অংশ সবসময় ফাইলের শেষে থাকবে =====
 export default app; // Vercel-এর জন্য
 if (!process.env.VERCEL) {
