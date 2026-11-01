@@ -168,6 +168,19 @@ app.post(
   })
 );
 
+// ---------- PRIVATE: My events (Manage Events page) ----------
+app.get(
+  "/my-events",
+  verifyToken,
+  wrap(async (req, res) => {
+    const events = await req.col.events
+      .find({ creatorEmail: req.user.email })
+      .sort({ date: 1 })
+      .toArray();
+    res.json(events);
+  })
+);
+
 // ===== এই লাইনের নিচের অংশ সবসময় ফাইলের শেষে থাকবে =====
 export default app; // Vercel-এর জন্য
 if (!process.env.VERCEL) {
