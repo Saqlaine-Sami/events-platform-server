@@ -181,6 +181,55 @@ app.get(
   })
 );
 
+// ---------- PRIVATE: Update event (শুধু নিজের) ----------
+app.put(
+  "/events/:id",
+  verifyToken,
+  wrap(async (req, res) => {
+    const { id } = req.params;
+    if (!ObjectId.isValid(id))
+      return res.status(400).json({ message: "ইভেন্ট ID সঠিক নয়" });
+
+    const event = await req.col.events.findOne({ _id: new ObjectId(id) });
+    if (!event) return res.status(404).json({ message: "ইভেন্ট পাওয়া যায়নি" });
+    if (event.creatorEmail !== req.user.email)
+      return res
+        .status(403)
+        .json({ message: "আপনি শুধু নিজের ইভেন্ট আপডেট করতে পারবেন" });
+
+    const error = validateEvent(req.body);
+    if (error) return res.status(400).json({ message: error });
+
+    await req.col.events.updateOne(
+      { _id: event._id },
+      { $set: pickEvent(req.body) }
+    );
+    res.json({ message: "ইভেন্ট আপডেট হয়েছে" });
+  })
+);
+
+// ---------- PRIVATE: Delete event (শুধু নিজের) ----------
+app.delete(
+  "/events/:id",
+  verifyToken,
+  wrap(async (req, res) => {
+    const { id } = req.params;
+    if (!ObjectId.isValid(id))
+      return res.status(400).json({ message: "ইভেন্ট ID সঠিক নয়" });
+
+    const event = await req.col.events.findOne({ _id: new ObjectId(id) });
+    if (!event) return res.status(404).json({ message: "ইভেন্ট পাওয়া যায়নি" });
+    if (event.creatorEmail !== req.user.email)
+      return res
+        .status(403)
+        .json({ message: "আপনি শুধু নিজের ইভেন্ট ডিলিট করতে পারবেন" });
+
+    await req.col.events.deleteOne({ _id: event._id });
+    await req.col.joins.deleteMany({ eventId: event._id }); // এই ইভেন্টের join রেকর্ডও মুছে যাবে
+    res.json({ message: "ইভেন্ট ডিলিট হয়েছে" });
+  })
+);
+
 // ===== এই লাইনের নিচের অংশ সবসময় ফাইলের শেষে থাকবে =====
 export default app; // Vercel-এর জন্য
 if (!process.env.VERCEL) {
