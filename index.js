@@ -120,6 +120,35 @@ const pickEvent = (b) => ({
 // ===== নিচের marker-এর পরে নতুন নতুন route/middleware যোগ করবে =====
 // ---- routes ----
 
+// ---------- PUBLIC: Upcoming events ----------
+// শুধু আজকের বা ভবিষ্যতের ইভেন্ট, date অনুযায়ী সাজানো
+// Home page এ: GET /events?limit=6  (MongoDB .limit() ব্যবহার হচ্ছে)
+app.get(
+  "/events",
+  wrap(async (req, res) => {
+    const limit = Number(req.query.limit) || 0; // 0 মানে limit নেই
+    const events = await req.col.events
+      .find({ date: { $gte: todayStr() } })
+      .sort({ date: 1 })
+      .limit(limit)
+      .toArray();
+    res.json(events);
+  })
+);
+
+// ---------- PUBLIC: Single event ----------
+app.get(
+  "/events/:id",
+  wrap(async (req, res) => {
+    const { id } = req.params;
+    if (!ObjectId.isValid(id))
+      return res.status(400).json({ message: "ইভেন্ট ID সঠিক নয়" });
+    const event = await req.col.events.findOne({ _id: new ObjectId(id) });
+    if (!event) return res.status(404).json({ message: "ইভেন্ট পাওয়া যায়নি" });
+    res.json(event);
+  })
+);
+
 // ===== এই লাইনের নিচের অংশ সবসময় ফাইলের শেষে থাকবে =====
 export default app; // Vercel-এর জন্য
 if (!process.env.VERCEL) {
